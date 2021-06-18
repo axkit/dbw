@@ -555,3 +555,7 @@ func (t *Table) doUpdateRowVersion(ctx context.Context, tx *Tx, id interface{}, 
 
 	return err
 }
+
+func (t *Table) DoSelectByID(id interface{}, row interface{}) error {
+	return WrapError(t, t.doSelectByIDCtx(t.ctx, id, row))
+}

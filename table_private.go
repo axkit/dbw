@@ -1,6 +1,7 @@
 package dbw
 
 import (
+	"context"
 	"reflect"
 	"strconv"
 	"strings"
@@ -570,4 +571,9 @@ func (t *Table) fieldAddrsSelect(model interface{}, cstags string, rule TagExclu
 		res = append(res, sf.Addr().Interface())
 	}
 	return res
+}
+
+func (t *Table) doSelectByIDCtx(ctx context.Context, id interface{}, row interface{}) error {
+	cols := t.fieldAddrsSelect(row, "", All)
+	return t.db.QueryRowContext(ctx, t.SQL.SelectByID, id).Scan(cols...)
 }

@@ -32,17 +32,19 @@ type Stmt struct {
 func newStmt(ctx context.Context, db *DB, uid string, qry string) *Stmt {
 	s := &Stmt{uid: uid, text: qry, db: db}
 	s.sqlStmt, s.err = db.SQLDB().PrepareContext(ctx, qry)
-	if s.err != nil {
-		if pe, ok := s.err.(*pq.Error); ok {
-			s.err = errors.Catch(pe).
-				Set("query", qry).
-				Set("code", pe.Code).
-				Set("name", pe.Code.Name()).
-				Severity(errors.Critical).
-				Msg("prepare sql statement failed")
-		} else {
-			s.err = errors.Catch(s.err).Set("query", qry).Severity(errors.Critical).Msg("prepare sql statement failed")
-		}
+	if s.err == nil {
+		return s
+	}
+
+	if pe, ok := s.err.(*pq.Error); ok {
+		s.err = errors.Catch(s.err).
+			Set("query", qry).
+			Set("code", pe.Code).
+			Set("name", pe.Code.Name()).
+			Severity(errors.Critical).
+			Msg("prepare sql statement failed")
+	} else {
+		s.err = errors.Catch(s.err).Set("query", qry).Severity(errors.Critical).Msg("prepare sql statement failed")
 	}
 
 	return s

@@ -2,9 +2,11 @@ package dbw
 
 import (
 	"fmt"
+	"runtime"
+
+	"github.com/axkit/errors"
 	"github.com/lib/pq"
 	"github.com/rs/zerolog"
-	"runtime"
 )
 
 type targetType string
@@ -59,8 +61,42 @@ func (err Error) MarshalZerologObject(e *zerolog.Event) {
 	}
 }
 
-// WrapError .
 func WrapError(t interface{}, err error, params ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+
+	ce := errors.Catch(err).Severity(errors.Critical)
+
+	switch t.(type) {
+	case *string:
+		ce.Set("target", targetQuery)
+		ce.Set("sql", *t.(*string))
+	case string:
+		ce.Set("target", targetQuery)
+		ce.Set("sql", t.(string))
+	case *Table:
+		ce.Set("target", targetTable)
+		ce.Set("sql", t.(*Table).name)
+	default:
+		break
+	}
+
+	if pgerr, ok := err.(*pq.Error); ok {
+		ce.Set("code", pgerr.Code)
+		//e.sqlErrCode = string(pgerr.Code)
+	}
+	if len(params) > 0 {
+		ce.SetVals("params", params...)
+	}
+
+	//e.params = append(e.params, params...)
+
+	return ce
+}
+
+// WrapError .
+func WrapErrorOld(t interface{}, err error, params ...interface{}) error {
 	if err == nil {
 		return nil
 	}
