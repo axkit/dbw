@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/axkit/errors"
+	"github.com/lib/pq"
 )
 
 // StmtInstance
@@ -237,6 +238,20 @@ func (si *StmtInstance) QueryRowContext(ctx context.Context, args ...interface{}
 	si.At = time.Now()
 	// there is no option to get acess to si.row.err immediately, it can be access only in Scan()
 	si.row = si.sqlStmt.QueryRowContext(ctx, args...)
+
+	if err := si.row.Err(); err != nil {
+		ce := errors.Catch(err).
+			Set("query", si.stmt.text).
+			Severity(errors.Critical).
+			SetVals("params", args...)
+		perr, ok := err.(*pq.Error)
+		if ok {
+			ce.Set("code", string(perr.Code))
+			ce.Set("constraint", perr.Constraint)
+		}
+		si.err = ce.Msg("dbw: sql query failed")
+	}
+
 	si.RespondedIn = time.Since(si.At)
 	si.saveStat()
 	return si
@@ -256,13 +271,19 @@ func (si *StmtInstance) QueryContext(ctx context.Context, args ...interface{}) *
 		return si
 	}
 
+	var err error
 	si.At = time.Now()
-	if si.rows, si.err = si.sqlStmt.QueryContext(ctx, args...); si.err != nil {
-		si.err = errors.Catch(si.err).
+	if si.rows, err = si.sqlStmt.QueryContext(ctx, args...); err != nil {
+		ce := errors.Catch(err).
 			Set("query", si.stmt.text).
 			Severity(errors.Critical).
-			SetVals("params", args...).
-			Msg("dbw: sql query failed")
+			SetVals("params", args...)
+		fmt.Printf("\n%T\n", err)
+		perr, ok := err.(*pq.Error)
+		if ok {
+			ce.Set("code", perr.Code)
+		}
+		si.err = ce.Msg("dbw: sql query failed")
 	}
 
 	si.RespondedIn = time.Since(si.At)

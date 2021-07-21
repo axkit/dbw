@@ -1,5 +1,5 @@
-github.com/axkit/errors v0.0.2 h1:UrUvWQU27yxpMOHmgkcCYs3eUFKdreczxsx6X9BZFgA=
-github.com/axkit/errors v0.0.2/go.mod h1:3lpe31BA3dIuOjGWC7TXXy6voVxNQapCG1RgEFHVC+I=
+github.com/axkit/errors v0.0.3 h1:Kns4W3RcJbDxavSlV/ArLVOfytyfcQ3WLXv3x+an+bE=
+github.com/axkit/errors v0.0.3/go.mod h1:3lpe31BA3dIuOjGWC7TXXy6voVxNQapCG1RgEFHVC+I=
 github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/godbus/dbus/v5 v5.0.4/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/lib/pq v1.10.2 h1:AqzbZs4ZoCBp+GtejcpCpcxM3zlSMx29dXbUSeVtJb8=
