@@ -85,6 +85,12 @@ func WrapError(t interface{}, err error, params ...interface{}) error {
 	if pgerr, ok := err.(*pq.Error); ok {
 		ce.Set("code", pgerr.Code)
 		//e.sqlErrCode = string(pgerr.Code)
+		if pgerr.Constraint != "" {
+			ce.Set("constraint", pgerr.Constraint)
+		}
+		if pgerr.Column != "" {
+			ce.Set("column", pgerr.Column)
+		}
 	}
 	if len(params) > 0 {
 		ce.SetVals("params", params...)

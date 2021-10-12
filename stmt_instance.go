@@ -75,22 +75,25 @@ func (si *StmtInstance) Scan(dest ...interface{}) error {
 		return si.err
 	}
 
+	nfmsg := ""
 	switch {
 	case si.rows != nil:
-		si.err = errors.Catch(si.rows.Scan(dest...)).Set("query", si.stmt.text).Msg("dbw: sql rows scan failed")
+		si.err = si.rows.Scan(dest...)
+		nfmsg = "rows not found"
 	case si.row != nil:
-		si.err = errors.Catch(si.row.Scan(dest...)).Set("query", si.stmt.text).Msg("dbw: sql row scan failed")
+		si.err = si.row.Scan(dest...)
+		nfmsg = "row not found"
 	default:
-		si.err = errors.New("invalid Scan call")
+		si.err = errors.New("invalid Scan() call")
 	}
 
 	if si.err == nil {
 		return nil
 	}
 
-	switch errors.IsNotFound(si.err) {
+	switch si.err == sql.ErrNoRows {
 	case true:
-		si.err = errors.Catch(si.err).StatusCode(404)
+		si.err = errors.NotFound(nfmsg)
 	case false:
 		si.err = errors.Catch(si.err).Severity(errors.Critical).StatusCode(500)
 	}

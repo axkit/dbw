@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/md5"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/axkit/errors"
 
 	// подключаем реализацию драйвера postgresql.
 	_ "github.com/lib/pq"
@@ -362,4 +363,22 @@ func (db *DB) SetPlaceHolderType(ph ParamPlaceHolderType) {
 
 func (db *DB) PlaceHolderType() ParamPlaceHolderType {
 	return db.paramPlaceHolder
+}
+
+func (db *DB) InTx(f func(*Tx) error) error {
+	tx := db.Begin()
+	if err := tx.Err(); err != nil {
+		return errors.Catch(err).StatusCode(500).Msg("begin tx failed")
+	}
+
+	if err := f(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
