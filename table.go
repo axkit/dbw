@@ -470,7 +470,18 @@ func (t *Table) DoSelectCtx(ctx context.Context, where, order string, offset, li
 	return WrapError(t, t.doSelectCtx(ctx, where, order, offset, limit, f, row, params...))
 }
 
+func (t *Table) DoSelectTx(tx *Tx, where, order string, offset, limit int, f func() error, row interface{}, params ...interface{}) error {
+	return WrapError(t, t.doSelectCtxTx(context.Background(), tx, where, order, offset, limit, f, row, params...))
+}
+
+func (t *Table) DoSelectCtxTx(tx *Tx, where, order string, offset, limit int, f func() error, row interface{}, params ...interface{}) error {
+	return WrapError(t, t.doSelectCtxTx(context.Background(), tx, where, order, offset, limit, f, row, params...))
+}
 func (t *Table) doSelectCtx(ctx context.Context, where, order string, offset, limit int, f func() error, row interface{}, params ...interface{}) error {
+	return t.doSelectCtxTx(ctx, nil, where, order, offset, limit, f, row, params...)
+}
+
+func (t *Table) doSelectCtxTx(ctx context.Context, tx *Tx, where, order string, offset, limit int, f func() error, row interface{}, params ...interface{}) error {
 	cols := t.fieldAddrsSelect(row, "", All)
 
 	qry := t.SQL.Select
@@ -491,10 +502,15 @@ func (t *Table) doSelectCtx(ctx context.Context, where, order string, offset, li
 	}
 
 	if f == nil {
-		return t.db.QueryContext(ctx, qry, params...).Scan(cols...)
+		if tx == nil {
+			return t.db.QueryContext(ctx, qry, params...).Scan(cols...)
+		}
+		return t.db.QueryContextTx(ctx, tx, qry, params...).Scan(cols...)
 	}
-
-	return t.db.QueryContext(ctx, qry, params...).Fetch(f, cols...).Err()
+	if tx == nil {
+		return t.db.QueryContext(ctx, qry, params...).Fetch(f, cols...).Err()
+	}
+	return t.db.QueryContextTx(ctx, tx, qry, params...).Fetch(f, cols...).Err()
 }
 
 // Count returns amount of rows in the table complaints with condition in where.
