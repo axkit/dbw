@@ -239,24 +239,33 @@ func (si *StmtInstance) QueryRowContext(ctx context.Context, args ...interface{}
 	}
 	si.rows = nil
 	si.At = time.Now()
-	// there is no option to get acess to si.row.err immediately, it can be access only in Scan()
+	// there is no option to get access to si.row.err immediately, it can be access only in Scan()
 	si.row = si.sqlStmt.QueryRowContext(ctx, args...)
 
-	if err := si.row.Err(); err != nil {
-		ce := errors.Catch(err).
-			Set("query", si.stmt.text).
-			Severity(errors.Critical).
-			SetVals("params", args...)
-		perr, ok := err.(*pq.Error)
-		if ok {
-			ce.Set("code", string(perr.Code))
-			ce.Set("constraint", perr.Constraint)
-		}
-		si.err = ce.Msg("dbw: sql query failed")
+	err := si.row.Err()
+	if err == nil {
+		si.RespondedIn = time.Since(si.At)
+		si.saveStat()
+		return si
 	}
 
-	si.RespondedIn = time.Since(si.At)
-	si.saveStat()
+	ce := errors.Catch(err).
+		Set("query", si.stmt.text).
+		Severity(errors.Medium).
+		SetVals("params", args...)
+
+	if err == sql.ErrNoRows {
+		si.err = ce.StatusCode(404).Msg("dbw: row not found")
+		return si
+	}
+
+	perr, ok := err.(*pq.Error)
+	if ok {
+		ce.Set("code", string(perr.Code))
+		ce.Set("constraint", perr.Constraint)
+	}
+
+	si.err = ce.StatusCode(500).Msg("dbw: sql query failed")
 	return si
 }
 
@@ -299,7 +308,8 @@ func (si *StmtInstance) Query(args ...interface{}) *StmtInstance {
 }
 
 func (si *StmtInstance) Debug() *StmtInstance {
-	fmt.Printf("Fetched rows %d. First: %s, all: %s; %s\n", si.RowsFetched, si.RespondedIn, si.RowsFetchedIn, si.stmt.text)
+	si.stmt.db.logger.Debug().Str("text", si.stmt.text).Msg("sql query")
+	//fmt.Printf("Fetched rows %d. First: %s, all: %s; %s\n", si.RowsFetched, si.RespondedIn, si.RowsFetchedIn, si.stmt.text)
 	return si
 }
 
