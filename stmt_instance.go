@@ -75,14 +75,14 @@ func (si *StmtInstance) Scan(dest ...interface{}) error {
 		return si.err
 	}
 
-	nfmsg := ""
+	nfm := ""
 	switch {
 	case si.rows != nil:
 		si.err = si.rows.Scan(dest...)
-		nfmsg = "rows not found"
+		nfm = "rows not found"
 	case si.row != nil:
 		si.err = si.row.Scan(dest...)
-		nfmsg = "row not found"
+		nfm = "row not found"
 	default:
 		si.err = errors.New("invalid Scan() call")
 	}
@@ -91,11 +91,9 @@ func (si *StmtInstance) Scan(dest ...interface{}) error {
 		return nil
 	}
 
-	switch si.err == sql.ErrNoRows {
-	case true:
-		si.err = errors.NotFound(nfmsg)
-	case false:
-		si.err = errors.Catch(si.err).Severity(errors.Critical).StatusCode(500)
+	if si.err == sql.ErrNoRows {
+		si.err = errors.NotFound(nfm)
+		return si.err
 	}
 
 	return si.err
@@ -217,15 +215,20 @@ func (si *StmtInstance) ExecContext(ctx context.Context, args ...interface{}) (s
 	si.At = time.Now()
 
 	si.result, si.err = si.sqlStmt.ExecContext(ctx, args...)
-	si.RespondedIn = time.Since(si.At)
-	if si.err != nil {
-		si.err = errors.Catch(si.err).
-			SetVals("params", args...).
-			Severity(errors.Medium).
-			StatusCode(500).
-			Msg("dbw: sql exec failed")
+	if si.err == nil {
+		si.RespondedIn = time.Since(si.At)
+		si.saveStat()
+		return si.result, si.err
 	}
-	si.saveStat()
+
+	si.err = parseError(si.err)
+	// if si.err != nil {
+	// 	si.err = errors.Catch(si.err).
+	// 		SetVals("params", args...).
+	// 		Severity(errors.Medium).
+	// 		StatusCode(500).
+	// 		Msg("dbw: sql exec failed")
+	// }
 	return si.result, si.err
 }
 
@@ -248,24 +251,26 @@ func (si *StmtInstance) QueryRowContext(ctx context.Context, args ...interface{}
 		si.saveStat()
 		return si
 	}
+	si.err = parseError(err)
 
-	ce := errors.Catch(err).
-		Set("query", si.stmt.text).
-		Severity(errors.Medium).
-		SetVals("params", args...)
+	// ce := errors.Catch(err).
+	// 	Set("query", si.stmt.text).
+	// 	Severity(errors.Medium).
+	// 	SetVals("params", args...)
 
-	if err == sql.ErrNoRows {
-		si.err = ce.StatusCode(404).Msg("dbw: row not found")
-		return si
-	}
+	// if err == sql.ErrNoRows {
+	// 	si.err = ce.StatusCode(404).Msg("dbw: row not found")
+	// 	return si
+	// }
 
-	perr, ok := err.(*pq.Error)
-	if ok {
-		ce.Set("code", string(perr.Code))
-		ce.Set("constraint", perr.Constraint)
-	}
+	// perr, ok := err.(*pq.Error)
+	// if ok {
+	// 	ce.Set("code", string(perr.Code))
+	// 	ce.Set("constraint", perr.Constraint)
+	// 	ce.Set("column", perr.Column)
+	// }
 
-	si.err = ce.StatusCode(500).Msg("dbw: sql query failed")
+	// si.err = ce.StatusCode(500).Msg("dbw: sql query failed")
 	return si
 }
 

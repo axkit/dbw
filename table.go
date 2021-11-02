@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/axkit/errors"
+	"github.com/lib/pq"
 	"github.com/rs/zerolog"
 )
 
@@ -34,6 +35,7 @@ type Table struct {
 		SelectCache               string
 		SelectCacheWithoutDeleted string
 		Select                    string
+		BasicInsert               string
 		Insert                    string
 		BasicUpdate               string
 		HardDelete                string
@@ -147,7 +149,12 @@ func (t *Table) genSQL() {
 	t.SQL.FlexDelete = "DELETE FROM " + t.name + " WHERE "
 	t.SQL.UpdateRowVersion = "UPDATE " + t.name + " SET updated_at=$1, row_version=row_version+1 WHERE id=$2 RETURNING row_version"
 	t.SQL.SelectCount = "SELECT COUNT(*) FROM " + t.name + " "
-	t.SQL.Insert = t.genInsertSQL()
+
+	t.SQL.BasicInsert = t.genInsertSQL()
+	t.SQL.Insert = t.SQL.BasicInsert
+	if t.isSequenceUsed {
+		t.SQL.Insert += " RETURNING id"
+	}
 	t.SQL.BasicUpdate = t.genUpdateSQL(allf)
 	//t.log.Debug().Msg(t.SQL.BasicUpdate)
 
@@ -395,6 +402,116 @@ func (t *Table) doHardDelTxCtx(ctx context.Context, tx *Tx, where string, args .
 	return si.ExecContext(ctx, args...)
 }
 
+type Option struct {
+	tx                       *Tx
+	ctx                      context.Context
+	returning                []interface{}
+	ignoredConflictingColumn string
+	returningAll             bool
+}
+
+func WithTx(tx *Tx) func(*Option) {
+	return func(s *Option) {
+		s.tx = tx
+	}
+}
+
+func WithCtx(ctx context.Context) func(*Option) {
+	return func(s *Option) {
+		s.ctx = ctx
+	}
+}
+
+func WithReturning(returning ...interface{}) func(*Option) {
+	return func(s *Option) {
+		if s.returningAll {
+			panic("WithReturningAll() called before")
+		}
+		s.returning = make([]interface{}, len(returning))
+		copy(s.returning, returning)
+	}
+}
+
+func WithReturningAll() func(*Option) {
+	return func(s *Option) {
+		if len(s.returning) > 0 {
+			panic("WithReturning() called before")
+		}
+	}
+}
+
+func WithIgnoreConflict(column ...string) func(*Option) {
+	return func(s *Option) {
+		sep := ""
+		for _, c := range column {
+			s.ignoredConflictingColumn += sep + c
+			sep = ","
+		}
+	}
+}
+
+func (t *Table) Insert(row interface{}, optFunc ...func(*Option)) error {
+
+	option := Option{}
+	for i := range optFunc {
+		optFunc[i](&option)
+	}
+
+	return parseError(t.insert(row, option))
+}
+
+func (t *Table) insert(row interface{}, option Option) error {
+	var (
+		err  error
+		si   *StmtInstance
+		stmt *Stmt
+	)
+
+	qry := t.SQL.BasicInsert
+	switch {
+	case option.ignoredConflictingColumn != "":
+		qry += " ON CONFLICT(" + option.ignoredConflictingColumn + ") DO NOTHING"
+		fallthrough
+	case option.returningAll:
+		qry += " RETURNING " + t.columns
+	case len(option.returning) == 1 && t.isSequenceUsed:
+		qry += " RETURNING id"
+	default:
+		break
+	}
+
+	if option.ctx == nil {
+		option.ctx = context.Background()
+	}
+
+	stmt = t.db.PrepareContext(option.ctx, qry)
+
+	if err := stmt.Err(); err != nil {
+		return err
+	}
+
+	if option.tx != nil {
+		if si = stmt.InstanceTx(option.tx); si.Err() != nil {
+			return si.Err()
+		}
+	} else {
+		si = stmt.Instance()
+	}
+
+	addrs := t.FieldAddrs(row, TagNoIns, Exclude)
+
+	switch {
+	case option.returningAll:
+		err = si.QueryRowContext(option.ctx, addrs...).Scan(addrs...)
+	case len(option.returning) == 1 && t.isSequenceUsed:
+		err = si.QueryRowContext(option.ctx, addrs...).Scan(option.returning...)
+	default:
+		_, err = si.ExecContext(option.ctx, addrs...)
+	}
+
+	return err
+}
+
 func (t *Table) DoInsert(row interface{}, returning ...interface{}) error {
 	return WrapError(t, t.doInsertTxCtx(nil, nil, row, returning...))
 }
@@ -436,11 +553,23 @@ func (t *Table) doInsertTxCtx(ctx context.Context, tx *Tx, row interface{}, retu
 
 	addrs := t.FieldAddrs(row, TagNoIns, Exclude)
 
-	if len(returning) > 0 && t.isSequenceUsed {
+	if len(returning) > 0 {
 		err = si.QueryRowContext(ctx, addrs...).Scan(returning...)
 	} else {
 		_, err = si.ExecContext(ctx, addrs...)
 	}
+
+	if err != nil {
+		perr, ok := err.(*pq.Error)
+		if ok {
+			if perr.Code == "23505" {
+				si.err = errors.Wrap(err, ErrUniqueViolation).SetPairs("code", perr.Code, "constraint", perr.Constraint, "column", perr.Column)
+				return si.err
+			}
+			si.err = errors.Wrap(err, ErrQueryExecFailed).SetPairs("code", perr.Code, "constraint", perr.Constraint, "column", perr.Column)
+		}
+	}
+
 	return err
 }
 

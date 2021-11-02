@@ -1,12 +1,21 @@
 package dbw
 
 import (
+	"database/sql"
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/axkit/errors"
 	"github.com/lib/pq"
 	"github.com/rs/zerolog"
+)
+
+var (
+	ErrUniqueViolation = errors.New("unique violation").StatusCode(409)
+	ErrConnectionDone  = errors.New("database connection lost").StatusCode(503).Critical()
+	ErrQueryExecFailed = errors.New("query execution failed").StatusCode(500).Critical()
+	ErrNotFound        = errors.New("not found").StatusCode(404)
 )
 
 type targetType string
@@ -133,4 +142,55 @@ func WrapErrorOld(t interface{}, err error, params ...interface{}) error {
 
 func (e *Error) SQLErrCode() string {
 	return e.sqlErrCode
+}
+
+func parseError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if err == sql.ErrNoRows {
+		return errors.NotFound(sql.ErrNoRows.Error())
+	}
+
+	if err == sql.ErrConnDone {
+		return ErrConnectionDone
+	}
+
+	kv := []interface{}{}
+	add := func(k, v string) {
+		if v != "" {
+			kv = append(kv, k, v)
+		}
+	}
+
+	if pge, ok := err.(*pq.Error); ok {
+
+		add("pgCode", string(pge.Code))
+		add("pgMessage", strings.Replace(string(pge.Message), `"`, "'", -1))
+		add("pgSchema", string(pge.Schema))
+		add("pgTable", string(pge.Table))
+		add("pgConstraint", string(pge.Constraint))
+		add("pgColumn", string(pge.Column))
+		add("pgFile", string(pge.File))
+		add("pgLine", string(pge.Line))
+		add("pgWhere", string(pge.Where))
+
+		// Severity         string
+		// Detail           string
+		// Hint             string
+		// Position         string
+		// InternalPosition string
+		// InternalQuery    string
+		// DataTypeName     string
+		// Routine          string
+		var ce *errors.CatchedError
+		if pge.Code == "23505" {
+			ce = ErrUniqueViolation.Capture().SetPairs(kv...)
+		} else {
+			ce = ErrQueryExecFailed.Capture().SetPairs(kv...)
+		}
+		return ce
+	}
+	return err
 }

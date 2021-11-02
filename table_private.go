@@ -100,10 +100,6 @@ func (t *Table) genInsertSQL() string {
 	}
 	s += ")"
 
-	if t.isSequenceUsed {
-		s += " RETURNING id"
-	}
-
 	return s
 }
 
