@@ -2,6 +2,7 @@ package dbw
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -44,35 +45,40 @@ func (ns NullTime) String() string {
 	return time.Time(ns).String()
 }
 
-// // UnmarshalJSON implements encoding/json Unmarshaller interface.
-// func (ns *NullTime) UnmarshalJSON(b []byte) error {
+// UnmarshalJSON implements encoding/json Unmarshaller interface.
+func (ns *NullTime) UnmarshalJSON(b []byte) error {
 
-// 	if len(b) == 0 {
-// 		*ns = ""
-// 		return nil
-// 	}
+	if len(b) == 0 || string(b) == "null" {
+		*ns = NullTime{}
+		return nil
+	}
+	var t time.Time
 
-// 	*ns = NullTime(string(b))
-// 	return nil
-// }
+	err := json.Unmarshal(b, &t)
+	if err != nil {
+		return err
+	}
+	*ns = NullTime(t)
+	return nil
+}
 
-// // UnmarshalText implements encoding/text TextUnmarshaller interface.
-// func (ns *NullTime) UnmarshalText(b []byte) error {
-// 	return ns.UnmarshalJSON(b)
-// }
+// UnmarshalText implements encoding/text TextUnmarshaller interface.
+func (ns *NullTime) UnmarshalText(b []byte) error {
+	return ns.UnmarshalJSON(b)
+}
 
-// // MarshalText implements encoding/text TextMarshaller interface.
-// func (ns NullTime) MarshalText(b []byte) ([]byte, error) {
-// 	return ns.MarshalJSON()
-// }
+// MarshalText implements encoding/text TextMarshaller interface.
+func (ns NullTime) MarshalText(b []byte) ([]byte, error) {
+	return ns.MarshalJSON()
+}
 
-// // MarshalJSON implements encoding/json Marshaller interface.
-// func (ns NullTime) MarshalJSON() ([]byte, error) {
-// 	if !ns.Valid() {
-// 		return nil, nil
-// 	}
-// 	return []byte(ns), nil
-// }
+// MarshalJSON implements encoding/json Marshaller interface.
+func (ns NullTime) MarshalJSON() ([]byte, error) {
+	if time.Time(ns).IsZero() {
+		return []byte("null"), nil
+	}
+	return json.Marshal(time.Time(ns))
+}
 
 func (ns *NullTime) SetNow() {
 	*ns = NullTime(time.Now())
