@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	ErrUniqueViolation = errors.New("unique violation").StatusCode(409)
-	ErrConnectionDone  = errors.New("database connection lost").StatusCode(503).Critical()
-	ErrQueryExecFailed = errors.New("query execution failed").StatusCode(500).Critical()
-	ErrNotFound        = errors.New("not found").StatusCode(404)
+	ErrUniqueViolation         = errors.New("unique violation").StatusCode(409)
+	ErrCheckConstaintViolation = errors.New("check constraint violation").StatusCode(400)
+	ErrConnectionDone          = errors.New("database connection lost").StatusCode(503).Critical()
+	ErrQueryExecFailed         = errors.New("query execution failed").StatusCode(500).Critical()
+	ErrNotFound                = errors.New("not found").StatusCode(404)
 )
 
 type targetType string
@@ -185,9 +186,12 @@ func parseError(err error) error {
 		// DataTypeName     string
 		// Routine          string
 		var ce *errors.CatchedError
-		if pge.Code == "23505" {
+		switch pge.Code {
+		case "23505":
 			ce = ErrUniqueViolation.Capture().SetPairs(kv...)
-		} else {
+		case "23514":
+			ce = ErrCheckConstaintViolation.Capture().SetPairs(kv...)
+		default:
 			ce = ErrQueryExecFailed.Capture().SetPairs(kv...)
 		}
 		return ce
