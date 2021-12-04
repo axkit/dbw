@@ -76,13 +76,12 @@ func New(ctx context.Context, db *DB, name string, model interface{}) (*Table, e
 		}
 	}
 
+	t.initColTag(model)
 	t.columns = t.fieldNames(model, "", All)
 
-	t.initColTag(model)
-
-	t.withDeletedAt = strings.Contains(t.columns, "DeletetAd")
-	t.withRowVersion = strings.Contains(t.columns, "RowVersion")
-	t.withUpdatedAt = strings.Contains(t.columns, "UpdatedAt")
+	t.withDeletedAt = strings.Contains(t.columns, "deleted_at")
+	t.withRowVersion = strings.Contains(t.columns, "row_version")
+	t.withUpdatedAt = strings.Contains(t.columns, "updated_at")
 
 	t.genSQL()
 
@@ -100,12 +99,12 @@ func NewTable(db *DB, name string, model interface{}) *Table {
 
 	t.SetLogger(db.Logger())
 
-	t.columns = t.fieldNames(model, "", All)
 	t.initColTag(model)
+	t.columns = t.fieldNames(model, "", All)
 
-	t.withDeletedAt = strings.Contains(t.columns, "DeletetAd")
-	t.withRowVersion = strings.Contains(t.columns, "RowVersion")
-	t.withUpdatedAt = strings.Contains(t.columns, "UpdatedAt")
+	t.withDeletedAt = strings.Contains(t.columns, "deleted_at")
+	t.withRowVersion = strings.Contains(t.columns, "row_version")
+	t.withUpdatedAt = strings.Contains(t.columns, "updated_at")
 
 	t.genSQL()
 
@@ -400,116 +399,6 @@ func (t *Table) doHardDelTxCtx(ctx context.Context, tx *Tx, where string, args .
 	}
 
 	return si.ExecContext(ctx, args...)
-}
-
-type Option struct {
-	tx                       *Tx
-	ctx                      context.Context
-	returning                []interface{}
-	ignoredConflictingColumn string
-	returningAll             bool
-}
-
-func WithTx(tx *Tx) func(*Option) {
-	return func(s *Option) {
-		s.tx = tx
-	}
-}
-
-func WithCtx(ctx context.Context) func(*Option) {
-	return func(s *Option) {
-		s.ctx = ctx
-	}
-}
-
-func WithReturning(returning ...interface{}) func(*Option) {
-	return func(s *Option) {
-		if s.returningAll {
-			panic("WithReturningAll() called before")
-		}
-		s.returning = make([]interface{}, len(returning))
-		copy(s.returning, returning)
-	}
-}
-
-func WithReturningAll() func(*Option) {
-	return func(s *Option) {
-		if len(s.returning) > 0 {
-			panic("WithReturning() called before")
-		}
-	}
-}
-
-func WithIgnoreConflict(column ...string) func(*Option) {
-	return func(s *Option) {
-		sep := ""
-		for _, c := range column {
-			s.ignoredConflictingColumn += sep + c
-			sep = ","
-		}
-	}
-}
-
-func (t *Table) Insert(row interface{}, optFunc ...func(*Option)) error {
-
-	option := Option{}
-	for i := range optFunc {
-		optFunc[i](&option)
-	}
-
-	return parseError(t.insert(row, option))
-}
-
-func (t *Table) insert(row interface{}, option Option) error {
-	var (
-		err  error
-		si   *StmtInstance
-		stmt *Stmt
-	)
-
-	qry := t.SQL.BasicInsert
-	switch {
-	case option.ignoredConflictingColumn != "":
-		qry += " ON CONFLICT(" + option.ignoredConflictingColumn + ") DO NOTHING"
-		fallthrough
-	case option.returningAll:
-		qry += " RETURNING " + t.columns
-	case len(option.returning) == 1 && t.isSequenceUsed:
-		qry += " RETURNING id"
-	default:
-		break
-	}
-
-	if option.ctx == nil {
-		option.ctx = context.Background()
-	}
-
-	stmt = t.db.PrepareContext(option.ctx, qry)
-
-	if err := stmt.Err(); err != nil {
-		return err
-	}
-
-	if option.tx != nil {
-		if si = stmt.InstanceTx(option.tx); si.Err() != nil {
-			return si.Err()
-		}
-	} else {
-		si = stmt.Instance()
-	}
-
-	addrs := t.FieldAddrs(row, TagNoIns, Exclude)
-
-	switch {
-	case option.returningAll:
-		err = si.QueryRowContext(option.ctx, addrs...).Scan(addrs...)
-	case len(option.returning) == 1 && t.isSequenceUsed:
-		err = si.QueryRowContext(option.ctx, addrs...).Scan(option.returning...)
-	default:
-		_, err = si.ExecContext(option.ctx, addrs...)
-	}
-
-	return err
 }
 
 func (t *Table) DoInsert(row interface{}, returning ...interface{}) error {

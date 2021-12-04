@@ -3,44 +3,77 @@ package dbw
 import (
 	"testing"
 	"time"
-
-	"github.com/axkit/date"
 )
 
 func TestFieldNames(t *testing.T) {
 
-	type UserRow struct {
-		ID                       int       `dbw:"noseq"` // id                      INT8                        NOT NULL,
-		TypeID                   int       // type_id                 INT2                        NOT NULL,
-		StateID                  int       // state_id                INT2                        NOT NULL,
-		GenderID                 *int      // gender_id               INT2,
-		Nickname                 *string   // nickname                VARCHAR(64),
-		EncryptedFullName        *string   // encrypted_full_name     TEXT,
-		HashedFullName           *string   // hashed_full_name        TEXT,
-		EncryptedLegalName       *string   // encrypted_legal_name    TEXT,
-		HashedLegalName          *string   // hashed_legal_name       TEXT,
-		EncryptedFirstName       *string   // encrypted_first_name    TEXT,
-		HashedFirstName          *string   // hashed_first_name       TEXT,
-		EncryptedLastName        *string   // encrypted_last_name     TEXT,
-		HashedLastName           *string   // hashed_last_name        TEXT,
-		Dob                      date.Date // dob                     DATE,
-		EncryptedAadhar          *string   // encrypted_aadhar        TEXT,
-		HashedAadhar             *string   // hashed_aadhar           TEXT,
-		EncryptedPan             *string   // encrypsted_pan           TEXT,
-		HashedPan                *string   // hashed_pan              TEXT,
-		IsPep                    *bool     // is_pep                  BOOLEAN,
-		DefaultRefcodeID         *int      `dbw:"bms"`
-		DefaultRefcodeAssignedAt NullTime
-		FaceFingerprint          *string   `dbw:"face"`
-		RowVersion               int       // row_version INT8 DEFAULT 0              NOT NULL,
-		CreatedBy                int       // created_by          INT8                        NOT NULL,
-		CreatedAt                time.Time // created_at          TIMESTAMPTZ DEFAULT NOW()   NOT NULL,
-		UpdatedBy                *int      // updated_by          INT8,
-		UpdatedAt                NullTime  // updated_at          TIMESTAMPTZ,
-		DeletedBy                *int      // deleted_by          INT8,
-		DeletedAt                NullTime  // deleted_at          TIMESTAMPTZ,
+	db, err := Open("postgres", "host=localhost port=5432 dbname=postgres user=admin password=admin sslmode='disable' bytea_output='hex'")
+	if err != nil {
+		t.Error(err)
 	}
 
-	s := FieldNames(&UserRow{}, "")
-	t.Log(s)
+	_, err = db.Exec(`
+	create table x_haha( 
+	 id 			int8 not null,  
+     name 			text,
+	 row_version 	int8 not null default 1,
+	 created_at 	TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	 updated_at 	TIMESTAMPTZ,
+	 deleted_at 	TIMESTAMPTZ,
+	 constraint x_haha_pk primary key (id)	
+	)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = db.Exec("create sequence x_haha_seq")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		db.Exec("drop table x_haha")
+		db.Exec("drop sequence x_haha_seq")
+	}()
+
+	type Xhaha struct {
+		ID         int
+		Name       *string
+		RowVersion int
+		CreatedAt  time.Time
+		UpdatedAt  *time.Time
+		DeletedAt  *time.Time
+	}
+
+	tbl := NewTable(db, "x_haha", &Xhaha{})
+
+	s := "Robert"
+	row := Xhaha{}
+	row.Name = &s
+	row.CreatedAt = time.Now()
+	if err := tbl.Insert(&row); err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("version before: %v", row.RowVersion)
+
+	s = "Rimma"
+	if err := tbl.Update(&row); err != nil {
+		t.Error(err)
+	}
+	// tbl.Update().Row(&row).NoReturning()
+
+	t.Logf("version after: %v ", row.RowVersion)
+
+	if err := tbl.Delete(WithID(1), WithReturnVersion(&row.RowVersion)); err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("version after: %v", row.RowVersion)
+
+	if err := tbl.Delete(WithID(1), WithReturnAll(&row)); err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("version after: %v", row.RowVersion)
 }
