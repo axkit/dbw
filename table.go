@@ -225,6 +225,7 @@ func (t *Table) doUpdateTx(ctx context.Context, tx *Tx, row interface{}, tags st
 		si  *StmtInstance
 		oua NullTime
 		rv  int
+		qry string
 	)
 
 	stmtUID := t.name + tags + "update" + strconv.Itoa(int(rule))
@@ -232,8 +233,8 @@ func (t *Table) doUpdateTx(ctx context.Context, tx *Tx, row interface{}, tags st
 	stmt, ok := t.db.Stmt(stmtUID)
 	if !ok {
 		// если не найдено в подготовленных запросах.
-		s := t.genUpdateSQL(t.fieldNamesUpdate(row, tags, rule))
-		stmt = t.db.PrepareContextN(ctx, s, stmtUID)
+		qry = t.genUpdateSQL(t.fieldNamesUpdate(row, tags, rule))
+		stmt = t.db.PrepareContextN(ctx, qry, stmtUID)
 	}
 
 	if stmt.err != nil {
@@ -257,6 +258,8 @@ func (t *Table) doUpdateTx(ctx context.Context, tx *Tx, row interface{}, tags st
 		oua = *updatedAt
 		updatedAt.SetNow() // set now() at struct.UpdatedAt
 	}
+
+	//fmt.Printf("%s: %#v %#v\n", qry, addrs, row)
 
 	if t.withRowVersion {
 		// if table has row_version column
@@ -592,4 +595,8 @@ func (t *Table) doUpdateRowVersion(ctx context.Context, tx *Tx, id interface{}, 
 
 func (t *Table) DoSelectByID(id interface{}, row interface{}) error {
 	return WrapError(t, t.doSelectByIDCtx(t.ctx, id, row))
+}
+
+func (t *Table) Columns() string {
+	return t.columns
 }
