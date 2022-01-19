@@ -151,7 +151,7 @@ func parseError(err error) error {
 	}
 
 	if err == sql.ErrNoRows {
-		return errors.Wrap(err, NotFound)
+		return errors.Wrap(err, ErrNotFound)
 	}
 
 	if err == sql.ErrConnDone {
