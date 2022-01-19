@@ -151,11 +151,11 @@ func parseError(err error) error {
 	}
 
 	if err == sql.ErrNoRows {
-		return errors.NotFound(sql.ErrNoRows.Error())
+		return errors.Wrap(err, NotFound)
 	}
 
 	if err == sql.ErrConnDone {
-		return ErrConnectionDone
+		return errors.Wrap(err, ErrConnectionDone)
 	}
 
 	kv := []interface{}{}
@@ -188,11 +188,11 @@ func parseError(err error) error {
 		var ce *errors.CatchedError
 		switch pge.Code {
 		case "23505":
-			ce = ErrUniqueViolation.Capture().SetPairs(kv...)
+			ce = errors.Wrap(pge, ErrUniqueViolation).SetPairs(kv...)
 		case "23514":
-			ce = ErrCheckConstaintViolation.Capture().SetPairs(kv...)
+			ce = errors.Wrap(pge, ErrCheckConstaintViolation).SetPairs(kv...)
 		default:
-			ce = ErrQueryExecFailed.Capture().SetPairs(kv...)
+			ce = errors.Wrap(pge, ErrQueryExecFailed).SetPairs(kv...)
 		}
 		return ce
 	}

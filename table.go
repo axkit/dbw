@@ -51,7 +51,7 @@ type Table struct {
 	// coltag holds struct field name and field's tags
 	coltag map[string]map[string]string
 
-	log zerolog.Logger
+	log *zerolog.Logger
 }
 
 // New automatically recognises autoincrement using sequecne by existance of
@@ -97,7 +97,7 @@ func NewTable(db *DB, name string, model interface{}) *Table {
 		isSequenceUsed: HasAutoincrementFieldID(model),
 	}
 
-	t.SetLogger(db.Logger())
+	//t.SetLogger(db.Logger())
 
 	t.initColTag(model)
 	t.columns = t.fieldNames(model, "", All)
@@ -125,7 +125,8 @@ func (t *Table) Name() string {
 }
 
 func (t *Table) SetLogger(l *zerolog.Logger) {
-	t.log = l.With().Str("table", t.name).Logger()
+	tl := l.With().Str("table", t.name).Logger()
+	t.log = &tl
 }
 
 func (t *Table) genSQL() {
@@ -259,7 +260,11 @@ func (t *Table) doUpdateTx(ctx context.Context, tx *Tx, row interface{}, tags st
 		updatedAt.SetNow() // set now() at struct.UpdatedAt
 	}
 
-	//fmt.Printf("%s: %#v %#v\n", qry, addrs, row)
+	// if t.isAuditRequired && t.log != nil {
+	// 	t.log.Info().Str("qry", stmt.text).Interface("params", addrs).Msg("sql")
+	// }
+
+	// fmt.Printf("%s: %#v %#v\n", qry, addrs, row)
 
 	if t.withRowVersion {
 		// if table has row_version column
