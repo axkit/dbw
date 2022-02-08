@@ -33,12 +33,13 @@ func NewSequence(db *DB, name string) *Sequence {
 
 // CheckExistance checks sequence existance.
 func (s *Sequence) CheckExistance() error {
-	err := errors.Catch(s.db.PrepareN(s.nextValSQL, s.name).Err()).
-		Severity(errors.Critical).
-		Set("seq", s.name).
-		Msg("dbw: sequence existance check failed")
-	s.isPrepared = (err == nil)
-	return err
+	if err := s.db.PrepareN(s.nextValSQL, s.name).Err(); err != nil {
+		return errors.Catch(err).Severity(errors.Critical).
+			Set("seq", s.name).
+			Msg("dbw: sequence existence check failed")
+	}
+	s.isPrepared = true
+	return nil
 }
 
 // NextVal returns next sequence value.
@@ -55,13 +56,14 @@ func (s *Sequence) NextVal(ctx context.Context) (int64, error) {
 	stmt, _ := s.db.Stmt(s.name)
 
 	var result int64
-	err := errors.Catch(stmt.Instance().QueryRowContext(ctx).Scan(&result)).
-		StatusCode(500).
-		Set("seq", s.name).
-		Msg("dbw: sequence nextval failed")
-
-	if err == nil {
-		atomic.StoreInt64(&s.lastValue, result)
+	err := stmt.Instance().QueryRowContext(ctx).Scan(&result)
+	if err != nil {
+		return 0, errors.Catch(err).
+			StatusCode(500).
+			Set("seq", s.name).
+			Msg("dbw: sequence nextval failed")
 	}
-	return result, err
+
+	atomic.StoreInt64(&s.lastValue, result)
+	return result, nil
 }
