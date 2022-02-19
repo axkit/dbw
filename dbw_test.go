@@ -5,6 +5,55 @@ import (
 	"time"
 )
 
+func TestMaskPostgreSQLConnectionString(t *testing.T) {
+
+	tc := []struct {
+		name string
+		src  string
+		dst  string
+	}{
+		{
+			"correct",
+			"host=localhost port=5432 dbname=postgres user=admin password=admin sslmode='disable",
+			"host=localhost port=5432 dbname=postgres user=admin password=***** sslmode='disable",
+		},
+		{
+			"space-after-key",
+			"host=localhost port=5432 dbname=postgres user=admin password =admin sslmode='disable",
+			"host=localhost port=5432 dbname=postgres user=admin password =***** sslmode='disable",
+		},
+		{
+			"space-before-value",
+			"host=localhost port=5432 dbname=postgres user=admin password= admin sslmode='disable",
+			"host=localhost port=5432 dbname=postgres user=admin password= ***** sslmode='disable",
+		},
+		{
+			"space-between-equal-sign",
+			"host=localhost port=5432 dbname=postgres user=admin password = admin sslmode='disable",
+			"host=localhost port=5432 dbname=postgres user=admin password = ***** sslmode='disable",
+		},
+		{
+			"last-param-position",
+			"host=localhost port=5432 dbname=postgres user=admin password=admin",
+			"host=localhost port=5432 dbname=postgres user=admin password=*****",
+		},
+		{
+			"no-password-param",
+			"host=localhost port=5432 dbname=postgres user=admin sslmode='disable",
+			"host=localhost port=5432 dbname=postgres user=admin sslmode='disable",
+		},
+	}
+
+	for i := range tc {
+		t.Run(tc[i].name, func(t *testing.T) {
+			res := MaskPostgreSQLConnectionString(tc[i].src)
+			if res != tc[i].dst {
+				t.Errorf("expected %s, got %s", tc[i].dst, res)
+			}
+		})
+	}
+}
+
 func TestFieldNames(t *testing.T) {
 
 	db, err := Open("postgres", "host=localhost port=5432 dbname=postgres user=admin password=admin sslmode='disable' bytea_output='hex'")

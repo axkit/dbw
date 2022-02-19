@@ -1,6 +1,7 @@
 package dbw
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"database/sql"
@@ -381,4 +382,35 @@ func (db *DB) InTx(f func(*Tx) error) error {
 	}
 
 	return nil
+}
+
+// MaskPostgreSQLConnectionString replaces password=12345 by password=*****.
+func MaskPostgreSQLConnectionString(src string) string {
+
+	res := []byte(src)
+
+	from := bytes.Index(res, []byte("password"))
+	if from < 0 {
+		return src
+	}
+
+	from += bytes.IndexByte(res[from:], '=') + 1
+	for _, c := range src[from:] {
+		if c == ' ' {
+			from++
+		}
+		break
+	}
+
+	to := bytes.IndexByte(res[from:], ' ')
+	if to < 0 {
+		to = len(src)
+	} else {
+		to += from
+	}
+
+	for i := from; i < to; i++ {
+		res[i] = '*'
+	}
+	return string(res)
 }
