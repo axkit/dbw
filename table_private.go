@@ -573,3 +573,8 @@ func (t *Table) doSelectByIDCtx(ctx context.Context, id interface{}, row interfa
 	cols := t.fieldAddrsSelect(row, "", All)
 	return t.db.QueryRowContext(ctx, t.SQL.SelectByID, id).Scan(cols...)
 }
+
+func (t *Table) doSelectRowCtx(ctx context.Context, where string, row interface{}, args ...interface{}) error {
+	cols := t.fieldAddrsSelect(row, "", All)
+	return t.db.QueryRowContext(ctx, t.SQL.Select+" where "+where, args...).Scan(cols...)
+}

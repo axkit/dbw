@@ -605,3 +605,7 @@ func (t *Table) DoSelectByID(id interface{}, row interface{}) error {
 func (t *Table) Columns() string {
 	return t.columns
 }
+
+func (t *Table) DoSelectRow(where string, row interface{}, args ...interface{}) error {
+	return WrapError(t, t.doSelectRowCtx(t.ctx, where, row, args...))
+}

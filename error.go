@@ -80,13 +80,13 @@ func WrapError(t interface{}, err error, params ...interface{}) error {
 
 	switch t.(type) {
 	case *string:
-		ce.Set("target", targetQuery)
+		ce.Set("target", string(targetQuery))
 		ce.Set("sql", *t.(*string))
 	case string:
-		ce.Set("target", targetQuery)
+		ce.Set("target", string(targetQuery))
 		ce.Set("sql", t.(string))
 	case *Table:
-		ce.Set("target", targetTable)
+		ce.Set("target", string(targetTable))
 		ce.Set("sql", t.(*Table).name)
 	default:
 		break
