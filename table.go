@@ -527,12 +527,6 @@ func (t *Table) doSelectCtxTx(ctx context.Context, tx *Tx, where, order string, 
 		qry += " LIMIT " + strconv.Itoa(limit)
 	}
 
-	if f == nil {
-		if tx == nil {
-			return t.db.QueryContext(ctx, qry, params...).Scan(cols...)
-		}
-		return t.db.QueryContextTx(ctx, tx, qry, params...).Scan(cols...)
-	}
 	if tx == nil {
 		return t.db.QueryContext(ctx, qry, params...).Fetch(f, cols...).Err()
 	}
