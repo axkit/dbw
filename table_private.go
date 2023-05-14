@@ -25,8 +25,11 @@ func (t *Table) genUpdateSQL(fields string) string {
 	sep := ""
 	i := 1
 	from, to := 0, 0
-	for {
 
+	for {
+		if to == -1 {
+			break
+		}
 		to = strings.Index(fields[from:], ", ")
 		if to != -1 {
 			f = fields[from : from+to]
@@ -36,36 +39,32 @@ func (t *Table) genUpdateSQL(fields string) string {
 		}
 
 		if f == "id" || f == "created_at" || f == "deleted_at" || f == "row_version" || f == "updated_at" {
-			if to == -1 {
-				if t.withUpdatedAt {
-					f = "updated_at"
-				}
-			} else {
-				continue
-			}
+			continue
 		}
 
 		s = s + sep + f
-
 		s += t.genParam(i)
 		sep = ", "
 		i++
-		if to == -1 {
-			break
-		}
 	}
+
+	if t.withUpdatedAt {
+		s += sep + "updated_at" + t.genParam(i)
+		i++
+	}
+
 	if t.withRowVersion {
 		s += sep + "row_version=row_version+1"
 	}
 
-	s += " WHERE id="
+	s += " WHERE id=" + t.genParam(i)
 
-	switch t.DB().PlaceHolderType() {
-	case QuestionMark:
-		s += "?"
-	case DollarPlusPosition:
-		s += "$" + strconv.Itoa(i)
-	}
+	// switch t.DB().PlaceHolderType() {
+	// case QuestionMark:
+	// 	s += "?"
+	// case DollarPlusPosition:
+	// 	s += "$" + strconv.Itoa(i)
+	// }
 
 	if t.withRowVersion {
 		s += " RETURNING row_version"
@@ -489,7 +488,7 @@ func (t *Table) fieldAddrsUpdate_(model interface{}, cstags string, rule TagExcl
 			updatedAt = sf.Addr().Interface().(*NullTime)
 			//if !updatedAt.Valid() {
 			updatedAt.SetNow() // !
-			res = append(res, sf.Addr().Interface())
+			//res = append(res, sf.Addr().Interface())
 			continue
 		}
 
@@ -510,6 +509,9 @@ func (t *Table) fieldAddrsUpdate_(model interface{}, cstags string, rule TagExcl
 		//fmt.Printf("%s=%v\n", tf.Name, sf.Addr().Interface())
 
 		res = append(res, sf.Addr().Interface())
+	}
+	if updatedAt != nil && *level == 0 {
+		res = append(res, updatedAt)
 	}
 	if id != nil && *level == 0 {
 		res = append(res, id)

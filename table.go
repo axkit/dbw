@@ -3,6 +3,7 @@ package dbw
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -237,6 +238,8 @@ func (t *Table) doUpdateTx(ctx context.Context, tx *Tx, row interface{}, tags st
 		qry = t.genUpdateSQL(t.fieldNamesUpdate(row, tags, rule))
 		stmt = t.db.PrepareContextN(ctx, qry, stmtUID)
 	}
+	fmt.Println("fieldNames", t.fieldNamesUpdate(row, tags, rule))
+	fmt.Println("qry", qry)
 
 	if stmt.err != nil {
 		return errors.Catch(stmt.err).
