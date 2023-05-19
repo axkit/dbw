@@ -57,7 +57,7 @@ func (t *Table) genUpdateSQL(fields string) string {
 		s += sep + "row_version=row_version+1"
 	}
 
-	s += " WHERE id=" + t.genParam(i)
+	s += " WHERE id" + t.genParam(i)
 
 	// switch t.DB().PlaceHolderType() {
 	// case QuestionMark:
