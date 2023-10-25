@@ -194,6 +194,7 @@ func (t *Table) insert(row interface{}, option Option) error {
 
 	params := t.FieldAddrs(row, TagNoIns, Exclude)
 
+	fmt.Println(qry)
 	switch {
 	case len(option.returnDests) > 0:
 		err = si.QueryRowContext(option.ctx, params...).Scan(option.returnDests...)

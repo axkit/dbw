@@ -256,6 +256,10 @@ func (t *Table) fieldNames(model interface{}, tags string, rule TagExclusionRule
 func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusionRule) string {
 
 	var res, sep string
+	fields := strings.Split(strings.Replace(tags, ";", ",", -1), ",")
+	for i := range fields {
+		fields[i] = strings.TrimSpace(fields[i])
+	}
 
 	s := reflect.ValueOf(model).Elem()
 	tof := s.Type()
@@ -272,6 +276,16 @@ func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusi
 
 		tag := tf.Tag.Get(FieldTagLabel)
 		if tag == "-" {
+			continue
+		}
+		found := false
+		for _, f := range fields {
+			if tag == f {
+				found = true
+				break
+			}
+		}
+		if !found {
 			continue
 		}
 
