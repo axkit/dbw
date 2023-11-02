@@ -278,15 +278,18 @@ func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusi
 		if tag == "-" {
 			continue
 		}
-		found := false
-		for _, f := range fields {
-			if tag == f {
-				found = true
-				break
+
+		if rule != All {
+			found := false
+			for _, f := range fields {
+				if tag == f {
+					found = true
+					break
+				}
 			}
-		}
-		if !found {
-			continue
+			if !found {
+				continue
+			}
 		}
 
 		//fmt.Println("tf=", tf.Name)
