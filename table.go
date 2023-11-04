@@ -3,7 +3,6 @@ package dbw
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -238,8 +237,6 @@ func (t *Table) doUpdateTx(ctx context.Context, tx *Tx, row interface{}, tags st
 		qry = t.genUpdateSQL(t.fieldNamesUpdate(row, tags, rule))
 		stmt = t.db.PrepareContextN(ctx, qry, stmtUID)
 	}
-	fmt.Println("fieldNames", t.fieldNamesUpdate(row, tags, rule))
-	fmt.Println("qry", qry)
 
 	if stmt.err != nil {
 		return errors.Catch(stmt.err).
@@ -263,11 +260,9 @@ func (t *Table) doUpdateTx(ctx context.Context, tx *Tx, row interface{}, tags st
 		updatedAt.SetNow() // set now() at struct.UpdatedAt
 	}
 
-	// if t.isAuditRequired && t.log != nil {
-	// 	t.log.Info().Str("qry", stmt.text).Interface("params", addrs).Msg("sql")
-	// }
-
-	// fmt.Printf("%s: %#v %#v\n", qry, addrs, row)
+	if t.isAuditRequired && t.log != nil {
+		t.log.Info().Str("qry", stmt.text).Interface("params", addrs).Msg("sql")
+	}
 
 	if t.withRowVersion {
 		// if table has row_version column

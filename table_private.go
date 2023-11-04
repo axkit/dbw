@@ -282,7 +282,7 @@ func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusi
 		if rule != All {
 			found := false
 			for _, f := range fields {
-				if tag == f {
+				if tag == f || f == "noseq" {
 					found = true
 					break
 				}
