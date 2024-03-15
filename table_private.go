@@ -269,8 +269,9 @@ func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusi
 		tf := tof.Field(i)
 		sf := s.Field(i)
 
+		//fmt.Println("tf=", tf.Name, "tf.Type=", tf.Type, "tf.Anonymous=", tf.Anonymous, "tf.Tag=", tf.Tag, "tf.Type.Kind()=", tf.Type.Kind())
 		// ignore private fields.
-		if sf.CanSet() == false {
+		if !sf.CanSet() {
 			continue
 		}
 
@@ -278,6 +279,7 @@ func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusi
 		if tag == "-" {
 			continue
 		}
+		//fmt.Println("tf1=", tf.Name)
 
 		if rule != All {
 			found := false
@@ -287,12 +289,12 @@ func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusi
 					break
 				}
 			}
-			if !found {
+			if !found && !tf.Anonymous {
 				continue
 			}
 		}
 
-		//fmt.Println("tf=", tf.Name)
+		//fmt.Println("babam", tf.Name)
 
 		if tf.Anonymous {
 			var ss string
@@ -335,6 +337,7 @@ func (t *Table) fieldNamesUpdate(model interface{}, tags string, rule TagExclusi
 		}
 		sep = ", "
 	}
+	//fmt.Println("res=", res)
 	return res
 }
 

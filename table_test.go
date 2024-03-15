@@ -6,9 +6,15 @@ import (
 
 func TestTable_fieldNamesUpdate(t *testing.T) {
 
+	type InternalStruct struct {
+		Color  string
+		Title  string `dbw:"meta"`
+		TypeID int    `dbw:"meta"`
+	}
 	type Header struct {
+		InternalStruct
 		ID         int
-		Name       string
+		Name       string `dbw:"meta"`
 		UpdatedAt  NullTime
 		RowVersion int
 	}
@@ -19,10 +25,10 @@ func TestTable_fieldNamesUpdate(t *testing.T) {
 	}
 
 	tbl := NewTable(&DB{}, "x", &Row{})
-	s := tbl.fieldNamesUpdate(&Row{}, "perms", Include)
-	t.Log(s)
+	s := tbl.fieldNamesUpdate(&Row{}, "meta", Include)
+	t.Log("columns:", s)
 
-	t.Log(tbl.fieldNamesUpdate(&Header{}, "", All))
+	//t.Log(tbl.fieldNamesUpdate(&Header{}, "", All))
 
 }
 
