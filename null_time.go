@@ -80,6 +80,12 @@ func (ns NullTime) MarshalJSON() ([]byte, error) {
 	return json.Marshal(time.Time(ns))
 }
 
+// SetNow sets value to current time.
 func (ns *NullTime) SetNow() {
 	*ns = NullTime(time.Now())
+}
+
+// SetNull sets value to null.
+func (ns *NullTime) SetNull() {
+	*ns = NullTime{}
 }
