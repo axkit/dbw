@@ -38,13 +38,14 @@ type Table struct {
 		BasicInsert               string
 		Insert                    string
 		BasicUpdate               string
-		HardDelete                string
+		HardDeleteByID            string
+		SoftDeleteByID            string
 		SoftDelete                string
 		ExistByID                 string
 		ExistByUID                string
 		UpdateRowVersion          string
 		SelectByID                string
-		FlexDelete                string
+		HardFlexDelete            string
 		SelectCount               string
 	}
 
@@ -144,9 +145,19 @@ func (t *Table) genSQL() {
 	t.SQL.SelectByID = t.SQL.Select + " WHERE id=$1"
 	t.SQL.ExistByID = "SELECT 1 FROM " + t.name + " WHERE id=$1"
 	t.SQL.ExistByUID = "SELECT 1 FROM " + t.name + " WHERE uid=$1"
-	t.SQL.HardDelete = "DELETE FROM " + t.name + " WHERE id=$1"
-	t.SQL.SoftDelete = "UPDATE " + t.name + " SET deleted_at=$1, row_version=row_version+1 WHERE id=$2 RETURNING row_version"
-	t.SQL.FlexDelete = "DELETE FROM " + t.name + " WHERE "
+	t.SQL.HardDeleteByID = "DELETE FROM " + t.name + " WHERE id=$1"
+
+	if t.withDeletedAt {
+		t.SQL.SoftDeleteByID = "UPDATE " + t.name + " SET deleted_at=$1"
+		if t.withRowVersion {
+			t.SQL.SoftDeleteByID += ", row_version=row_version+1"
+		}
+		t.SQL.SoftDeleteByID += " WHERE id=$2 RETURNING row_version"
+
+		t.SQL.SoftDelete = "UPDATE " + t.name + " SET deleted_at=$1, row_version=row_version+1 WHERE "
+	}
+
+	t.SQL.HardFlexDelete = "DELETE FROM " + t.name + " WHERE "
 	t.SQL.UpdateRowVersion = "UPDATE " + t.name + " SET updated_at=$1, row_version=row_version+1 WHERE id=$2 RETURNING row_version"
 	t.SQL.SelectCount = "SELECT COUNT(*) FROM " + t.name + " "
 
@@ -306,7 +317,7 @@ func (t *Table) doSoftDeleteTx(ctx context.Context, tx *Tx, id interface{}, dele
 		stmt *Stmt
 	)
 
-	if stmt = t.db.PrepareContext(ctx, t.SQL.SoftDelete); stmt.Err() != nil {
+	if stmt = t.db.PrepareContext(ctx, t.SQL.SoftDeleteByID); stmt.Err() != nil {
 		return stmt.Err()
 	}
 
@@ -354,7 +365,7 @@ func (t *Table) doHardDeleteTxCtx(ctx context.Context, tx *Tx, id interface{}) e
 		stmt *Stmt
 	)
 
-	if stmt = t.db.PrepareContext(ctx, t.SQL.HardDelete); stmt.Err() != nil {
+	if stmt = t.db.PrepareContext(ctx, t.SQL.HardDeleteByID); stmt.Err() != nil {
 		return stmt.Err()
 	}
 
@@ -390,7 +401,7 @@ func (t *Table) doHardDelTxCtx(ctx context.Context, tx *Tx, where string, args .
 		stmt *Stmt
 	)
 
-	if stmt = t.db.PrepareContext(ctx, t.SQL.FlexDelete+where); stmt.Err() != nil {
+	if stmt = t.db.PrepareContext(ctx, t.SQL.HardFlexDelete+where); stmt.Err() != nil {
 		return nil, stmt.Err()
 	}
 

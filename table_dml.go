@@ -26,7 +26,7 @@ type Option struct {
 	updateRow     interface{}
 
 	withID                   interface{}
-	withCondition            string
+	withWhere                string
 	conditionParams          []interface{}
 	ignoreConflictConditions string
 
@@ -119,7 +119,7 @@ func WithID(val interface{}) func(*Option) {
 
 func WithWhere(cond string, val ...interface{}) func(*Option) {
 	return func(s *Option) {
-		s.withCondition = cond
+		s.withWhere = cond
 		s.conditionParams = append(s.conditionParams, val)
 	}
 }
@@ -219,30 +219,34 @@ func (t *Table) delete(option *Option) error {
 		err  error
 		si   *StmtInstance
 		stmt *Stmt
+		qry  string
 	)
 
-	pos := len(option.conditionParams) + 1
-	if option.withID != nil {
-		pos++
+	last := 0
+	if option.withWhere != "" {
+		last = maxParamNumber(option.withWhere) + 1
 	}
 
-	qry := "UPDATE " + t.name + " SET deleted_at=$" + strconv.Itoa(pos)
-	if t.withRowVersion {
-		qry += ", row_version=row_version+1"
+	if t.withDeletedAt {
+		// soft delete
+		qry = t.SQL.SoftDelete
+		last++
+		if t.withRowVersion {
+			qry += ", row_version=row_version+1"
+		}
+		option.conditionParams = append(option.conditionParams, time.Now())
+	} else {
+		qry = "DELETE FROM " + t.name
 	}
 	qry += " WHERE true "
 
-	if option.withCondition != "" {
-		qry += " AND " + option.withCondition
-	}
-
 	if option.withID != nil {
-		qry += " AND id = $" + strconv.Itoa(len(option.conditionParams)+1)
+		qry += " AND id = $" + strconv.Itoa(last+1)
+		last++
 		option.conditionParams = append(option.conditionParams, option.withID)
+	} else if option.withWhere != "" {
+		qry += " AND " + option.withWhere
 	}
-
-	// add deleted_at value
-	option.conditionParams = append(option.conditionParams, time.Now())
 
 	switch {
 	case len(option.returnDests) > 0:
@@ -286,6 +290,105 @@ func (t *Table) delete(option *Option) error {
 	return err
 }
 
+func maxParamNumber(s string) int {
+	maxParam := 0
+	num := 0
+	inParam := false
+
+	for _, char := range s {
+		if char == '$' {
+			inParam = true
+			num = 0
+		} else if inParam && char >= '0' && char <= '9' {
+			num = num*10 + int(char-'0')
+		} else if inParam {
+			if num > maxParam {
+				maxParam = num
+			}
+			inParam = false
+		}
+	}
+
+	// Final check in case the string ends with a parameter
+	if inParam && num > maxParam {
+		maxParam = num
+	}
+
+	return maxParam
+}
+
+// func (t *Table) delete(option *Option) error {
+// 	var (
+// 		err  error
+// 		si   *StmtInstance
+// 		stmt *Stmt
+// 	)
+
+// 	pos := len(option.conditionParams) + 1
+// 	if option.withID != nil {
+// 		pos++
+// 	}
+
+// 	qry := "UPDATE " + t.name + " SET deleted_at=$" + strconv.Itoa(pos)
+// 	if t.withRowVersion {
+// 		qry += ", row_version=row_version+1"
+// 	}
+// 	qry += " WHERE true "
+
+// 	if option.withCondition != "" {
+// 		qry += " AND " + option.withCondition
+// 	}
+
+// 	if option.withID != nil {
+// 		qry += " AND id = $" + strconv.Itoa(len(option.conditionParams)+1)
+// 		option.conditionParams = append(option.conditionParams, option.withID)
+// 	}
+
+// 	// add deleted_at value
+// 	option.conditionParams = append(option.conditionParams, time.Now())
+
+// 	switch {
+// 	case len(option.returnDests) > 0:
+// 		qry += " RETURNING " + strings.Join(option.returnColNames, ",")
+// 	case !option.noReturningAll:
+// 		qry += " RETURNING " + t.columns
+// 	default:
+// 		break
+// 	}
+
+// 	if option.ctx == nil {
+// 		option.ctx = context.Background()
+// 	}
+
+// 	fmt.Println(qry)
+
+// 	stmt = t.db.PrepareContext(option.ctx, qry)
+
+// 	if err := stmt.Err(); err != nil {
+// 		return err
+// 	}
+
+// 	if option.tx != nil {
+// 		if si = stmt.InstanceTx(option.tx); si.Err() != nil {
+// 			return si.Err()
+// 		}
+// 	} else {
+// 		si = stmt.Instance()
+// 	}
+
+// 	switch {
+// 	case len(option.returnDests) > 0:
+// 		err = si.QueryRowContext(option.ctx, option.conditionParams...).Scan(option.returnDests...)
+// 	case option.returnAllDest != nil:
+// 		returns := t.fieldAddrsSelect(option.returnAllDest, "", All)
+// 		err = si.QueryRowContext(option.ctx, option.conditionParams...).Scan(returns...)
+// 	default:
+// 		_, err = si.ExecContext(option.ctx, option.conditionParams...)
+// 	}
+
+// 	return err
+// }
+
 func (t *Table) Update(row interface{}, optFunc ...func(*Option)) error {
 
 	option := Option{updateTagRule: All}
@@ -318,8 +421,8 @@ func (t *Table) update(row interface{}, option *Option) error {
 
 	qry += " WHERE true "
 
-	if option.withCondition != "" {
-		qry += " AND " + option.withCondition
+	if option.withWhere != "" {
+		qry += " AND " + option.withWhere
 	}
 
 	if option.withID != nil {
